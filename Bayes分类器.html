@@ -1,0 +1,231 @@
+<!DOCTYPE html>  
+<html>  
+  <head>  
+   <meta charset="UTF-8">
+  <meta name="Author" content="Rnd Liu">
+  <meta name="Keywords" content="Bayes">
+
+    <title>Bayes分类器</title>  
+     <style type="text/css">
+		body{font-family:'Microsoft YaHei', Helvetica,Arial,sans-serif;margin-top:0;}
+		p{margin:0;font-family:'Microsoft YaHei', Helvetica,Arial,sans-serif;}
+		.myCanvas{background-color:#9ccbc1;border:2px solid #58a797;left:100px;margin-left:auto;margin-right:auto;}
+		.C{background-color:#ffffff;border:2px solid #dddddd;}
+		.prodiv p{left:0%;display:inline;line-height:52px;position:relative;}
+
+		.prodiv{display:block;height:60px; font-size:22px;width:700px; background:#58a797;color:#ffffff;border-style:none;padding-left:20px;left:40%;position:relative;}
+
+		.btn{float:left;display:block;width:202px;height:52px; line-height:52px; text-align:center; font-size:22px; background:#58a797;color:#ffffff;text-decoration:none; border-style:none; cursor:pointer;position:relative;}
+		.btn:hover{background:#7dd5bc;}
+		.info{color:#295048;position:absolute;top:290px;color:#ffffff;padding-left:40px;}
+		.banner{background-color:#58a797;margin-top:0;margin-left:auto; margin-right:auto;width:40%;height:100px;font-size:40px;color:#ffffff;position:relative;}
+		.banner p{margin-left:auto;margin-right:auto;width:250px;margin-top:0;padding:20px;}
+	 </style> 
+    <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>  
+    <script>  
+	var picdrag = 0;
+    // 渲染  
+    function render(src){  
+        var image = new Image();  
+        image.onload = function(){ 
+            var canvas = document.getElementById("myCanvas");
+			var ctx = canvas.getContext("2d");  
+			var c1 = document.getElementById("c1");
+			var c2 = document.getElementById("c2");
+			var c3 = document.getElementById("c3");
+			var c4 = document.getElementById("c4");
+			var info = document.getElementById("info");
+			if(image.height > 500) {  
+                // 宽度等比例缩放  
+                image.width *= 500 / image.height;  
+                image.height = 500;  
+            }  
+        
+            ctx.clearRect(0, 0, canvas.width, canvas.height);  
+            // 重置canvas宽高  
+            canvas.width = image.width;  
+            canvas.height = image.height;
+			c1.width = image.width;  
+            c1.height = image.height;
+			c2.width = image.width;  
+            c2.height = image.height;
+			c3.width = image.width;  
+            c3.height = image.height;
+			c4.width = image.width;  
+            c4.height = image.height;
+
+			info.style.visibility="hidden"
+            // 将图像绘制到canvas上  
+            ctx.drawImage(image, 0, 0, image.width, image.height); 
+			picdrag = 1;
+
+        };  
+      image.src = src; 
+    };  
+
+
+    // 加载 图像文件  
+    function loadImage(src){  
+        // 过滤掉 非 image 类型的文件  
+        if(!src.type.match(/image.*/)){  
+            if(window.console){  
+                console.log("选择的文件类型不是图片: ", src.type);  
+            } else {  
+                window.confirm("只能选择图片文件");  
+            }  
+            return;  
+        }  
+ 
+        var reader = new FileReader();  
+
+        reader.onload = function(e){  
+            // 调用前面的 render 函数  
+            render(e.target.result);  
+        };  
+        // 读取文件内容  
+        reader.readAsDataURL(src);  
+    };  
+  
+    function init(){  
+        // 获取DOM元素对象  
+        var target = document.getElementById("myCanvas");  
+
+        target.addEventListener("dragover", function(e){e.preventDefault();}, true);  
+        // 拖动并放开鼠标的事件  
+        target.addEventListener("drop", function(e){  
+            e.preventDefault();   
+    
+            loadImage(e.dataTransfer.files[0]);  
+        }, true);  
+        var maxheight = document.getElementById("maxheight");   
+    };  
+
+
+    window.addEventListener("DOMContentLoaded", function() {  
+        init();  
+    },false); 
+
+
+    </script>  
+  </head>  
+    
+  <body>   
+    <div class="banner"><p>Bayes 分类器</p></div>
+	<button  class="btn" onclick="classify()"><p> 开始分类</p></button>
+	
+	<div class="prodiv"><p id="process">0%</p></div>
+	<p class="info" id="info">从文件夹拖动一张图片到这里</p>  
+    <div id="preview-row">  
+            <canvas id="myCanvas" class="myCanvas" height="300px" width="300px"></canvas><br>
+			<canvas id="c1" class="C" height="300px" width="300px"></canvas>
+			<canvas id="c2" class="C" height="300px" width="300px"></canvas>
+			<canvas id="c3" class="C" height="300px" width="300px"></canvas>
+			<canvas id="c4" class="C" height="300px" width="300px"></canvas>
+    </div>
+
+	
+
+	 <script>  
+	var x=new Array();
+	var y=new Array();
+	var slctclr=new Array();
+	var i=0;
+	var canvas = document.getElementById("myCanvas");
+	var ctx=canvas.getContext("2d");
+
+	var c1 = document.getElementById("c1");
+	var c1ctx1 = c1.getContext("2d");
+	var c2 = document.getElementById("c2");
+	var c1ctx2 = c2.getContext("2d");
+	var c3 = document.getElementById("c3");
+	var c1ctx3 = c3.getContext("2d");
+	var c4 = document.getElementById("c4");
+	var c1ctx4 = c4.getContext("2d");
+
+	var process = document.getElementById("process");
+	var j = 0 ;
+	var intx;
+
+	var lastcolor;
+	var lastresult = 0;
+
+	$("#myCanvas").mouseup(function(e){
+			if (i<=3 && picdrag)
+			{
+			
+			var mouseX = e.pageX - this.offsetLeft;		
+			var mouseY = e.pageY - this.offsetTop;
+			x[i]= mouseX;
+			y[i]= mouseY;
+			alert("第"+ (i+1).toString()+"个像素点");
+			slctclr[i] = ctx.getImageData(x[i],y[i],1,1);
+			i++;}
+			});
+
+	function classify()
+	{
+		if (i==3)
+		{
+		intx = self.setInterval("clock(j);j++;",20);
+		}
+	}
+
+
+	function clock(j)
+		{
+
+			if (j == canvas.height)
+				{window.clearInterval(intx);}
+			
+			for (var k=1 ; k< canvas.width ; k++ )
+			{
+				var imgData = ctx.getImageData(k,j,1,1);
+				
+				if (imgData == lastcolor)
+				{result = lastresult;}
+				else 
+				{var result = compare(imgData.data[0],imgData.data[1],imgData.data[2])}
+
+				lastcolor = imgData; //颜色信息存入缓存
+
+				if (result==1)
+				{c1ctx1.putImageData(imgData,k,j);}
+				else if (result==2)
+				{c1ctx2.putImageData(imgData,k,j);}
+				else if (result==3)
+				{c1ctx3.putImageData(imgData,k,j);}
+				else
+				{c1ctx4.putImageData(imgData,k,j);}
+				
+				process.innerHTML =j.toString()+ "/" + parseInt(c1.height).toString();
+			}
+			return;
+		}
+
+	function compare(red,green,blue){
+		
+		dist1 = Math.pow((slctclr[0].data[0]-red),2) + Math.pow((slctclr[0].data[1]-green),2) + Math.pow((slctclr[0].data[2]-blue),2);
+
+		dist2 = Math.pow((slctclr[1].data[0]-red),2) + Math.pow((slctclr[1].data[1]-green),2) + Math.pow((slctclr[1].data[2]-blue),2);
+
+		dist3 = Math.pow((slctclr[2].data[0]-red),2) + Math.pow((slctclr[2].data[1]-green),2) + Math.pow((slctclr[2].data[2]-blue),2);
+
+		dist4 = Math.pow((slctclr[3].data[0]-red),2) + Math.pow((slctclr[3].data[1]-green),2) + Math.pow((slctclr[3].data[2]-blue),2);
+
+	
+		var minresult = Math.min(dist1,dist2,dist3,dist4);
+		//结果存入缓存，返回结果
+		if (minresult == dist1)
+		{lastresult=1;return 1;}
+		else if (minresult == dist2)
+		{lastresult=2;return 2;}
+		else if (minresult == dist3)
+		{lastresult=3;return 3;}
+		else 
+		{lastresult=4;return 4;}
+	}
+
+
+	</script>  
+  </body>  
+</html>  
